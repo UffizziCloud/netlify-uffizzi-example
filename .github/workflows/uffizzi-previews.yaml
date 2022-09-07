@@ -88,7 +88,7 @@ jobs:
 
   delete-uffizzi-preview:
     name: Use Remote Workflow to Delete an Existing Preview
-    uses: UffizziCloud/preview-action/.github/workflows/reusable.yaml@v2.2.0
+    uses: UffizziCloud/preview-action/.github/workflows/reusable.yaml@output
     if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' }}
     with:
       compose-file-cache-key: ''
@@ -124,7 +124,8 @@ jobs:
           #yarn install --frozen-lockfile
           npm install
 
-          export REACT_APP_API_URL="https://deployment-5643-my-application.app.uffizzi.com/api/v1/todo"
+          export REACT_APP_API_URL="${{ needs.deploy-uffizzi-preview.outputs.url }}"
+          echo REACT_APP_API_URL=$REACT_APP_API_URL
           yarn build
 
           npm install netlify-cli --save-dev
