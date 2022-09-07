@@ -126,7 +126,7 @@ jobs:
           #yarn install --frozen-lockfile
           npm install
 
-          export REACT_APP_API_URL="${{ needs.deploy-uffizzi-preview.outputs.url }}"
+          export REACT_APP_API_URL="${{ needs.deploy-uffizzi-preview.outputs.url }}/api/v1/todo"
           echo REACT_APP_API_URL=$REACT_APP_API_URL
           yarn build
 
