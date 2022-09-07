@@ -5,9 +5,8 @@ services:
     depends_on:
       - api
     tty: true
-    volumes:
-      - ./frontend/public:/frontend/public:cached,ro
-      - ./frontend/src:/frontend/src:cached,ro
+    #environment:
+      #REACT_APP_API_URL: "http://localhost:3001/api/v1/todo"
     ports:
       - "3000:3000"
 
@@ -15,20 +14,25 @@ services:
     build: backend
     depends_on:
       - database
+      - cache
     tty: true
-    volumes:
-      - ./backend/bin:/backend/bin:cached,ro
-      - ./backend/src:/backend/src:cached,ro
     ports:
       - "3001:3001"
     environment:
+      MONGO_URI: "mongodb://root:1234@database"
+      REDIS_HOST: "cache"
       DATABASE_USER: "root"
       DATABASE_PASSWORD: "1234"
 
   database:
-    image: mongo:4.4
+    image: mongo:4
     ports:
       - "27017:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: "root"
       MONGO_INITDB_ROOT_PASSWORD: "1234"
+
+  cache:
+    image: redis:latest
+    ports:
+      - "6379:6379"

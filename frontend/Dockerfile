@@ -1,8 +1,8 @@
-FROM node:14-alpine
+FROM node:14
 
 WORKDIR /frontend
 
-COPY package.json package-lock.json ./
+COPY . .
 RUN npm install
 
 CMD ["npm", "start"]
