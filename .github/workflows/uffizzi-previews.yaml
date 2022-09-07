@@ -55,7 +55,7 @@ jobs:
           BACKEND_IMAGE=$(echo ${{ needs.build-backend.outputs.tags }})
           export BACKEND_IMAGE
           # Render simple template from environment variables.
-          envsubst < docker-compose.template.yml > docker-compose.rendered.yaml
+          envsubst < docker-compose.uffizzi.yml > docker-compose.rendered.yaml
           cat docker-compose.rendered.yaml
       - name: Hash Rendered Compose File
         id: hash
