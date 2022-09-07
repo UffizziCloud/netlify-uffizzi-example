@@ -124,7 +124,7 @@ jobs:
           npm install
 
           export REACT_APP_API_URL="https://deployment-5643-my-application.app.uffizzi.com/api/v1/todo"
-          npm build
+          yarn build
 
           npm install netlify-cli --save-dev
           export OUTPUT=$(sh -c "netlify deploy --dir=build")
