@@ -37,7 +37,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          context: ./api
+          context: ./backend
 
   render-compose-file:
     name: Render Docker Compose File
