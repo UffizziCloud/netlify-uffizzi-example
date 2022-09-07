@@ -116,6 +116,7 @@ jobs:
         with:
           node-version: 14
       - name: Build frontend and deploy to Netlify
+        id: netlify-deploy
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: 3d9c1b31-8f99-48a0-929b-5806a0fe2c39
@@ -132,11 +133,38 @@ jobs:
           export NETLIFY_OUTPUT=$(echo "$OUTPUT")
           export NETLIFY_URL=$(echo "$OUTPUT" | grep -Eo '(http|https)://[a-zA-Z0-9./?=_-]*(--)[a-zA-Z0-9./?=_-]*') #Unique key: --
           export NETLIFY_LOGS_URL=$(echo "$OUTPUT" | grep -Eo '(http|https)://app.netlify.com/[a-zA-Z0-9./?=_-]*') #Unique key: app.netlify.com
-          export NETLIFY_LIVE_URL=$(echo "$OUTPUT" | grep -Eo '(http|https)://[a-zA-Z0-9./?=_-]*' | grep -Eov "netlify.com") #Unique key: don't containr -- and app.netlify.com
+          export NETLIFY_LIVE_URL=$(echo "$OUTPUT" | grep -Eo '(http|https)://[a-zA-Z0-9./?=_-]*' | grep -Eov "netlify.com") #Unique key: don't contain -- and app.netlify.com
 
           echo "::set-output name=NETLIFY_OUTPUT::$NETLIFY_OUTPUT"
           echo "NETLIFY_OUTPUT::$NETLIFY_OUTPUT"
           echo "::set-output name=NETLIFY_URL::$NETLIFY_URL"
+          echo "NETLIFY_URL::$NETLIFY_URL"
           echo "::set-output name=NETLIFY_LOGS_URL::$NETLIFY_LOGS_URL"
+          echo "NETLIFY_LOGS_URL::$NETLIFY_LOGS_URL"
           echo "::set-output name=NETLIFY_LIVE_URL::$NETLIFY_LIVE_URL"
           echo "NETLIFY_LIVE_URL::$NETLIFY_LIVE_URL"
+      # If PR event, look for an existing Preview Deployment.
+      - name: Find comment for deployment URL
+        uses: peter-evans/find-comment@v2
+        if: github.event_name == 'pull_request'
+        id: find-comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: 'Netlify Preview URL:'
+          direction: last
+      - name: Create or update comment for deployment URL
+        uses: peter-evans/create-or-update-comment@v2
+        if: ${{ steps.find-comment.outputs.comment-id == '' && github.event.action != 'closed' }}
+        with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            Frontend Preview deployed at Netlify URL:
+            ${{ steps.netlify-deploy.outputs.NETLIFY_URL }}
+
+            Netlify logs available:
+            ${{ steps.netlify-deploy.outputs.NETLIFY_LOGS_URL }}
+
+          edit-mode: replace
+          reactions: rocket
