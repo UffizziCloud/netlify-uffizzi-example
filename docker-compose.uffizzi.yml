@@ -4,7 +4,7 @@ x-uffizzi:
     port: 3001  
 
 services:
-  api:
+  backend:
     image: "${BACKEND_IMAGE}"
     environment:
       PORT: 3001
