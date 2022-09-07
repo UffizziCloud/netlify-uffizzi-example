@@ -123,7 +123,7 @@ jobs:
           #yarn install --frozen-lockfile
           npm install
 
-          export REACT_APP_API_URL="http://localhost:3001/api/v1/todo"
+          export REACT_APP_API_URL="https://deployment-5643-my-application.app.uffizzi.com/api/v1/todo"
           npm build
 
           npm install netlify-cli --save-dev
