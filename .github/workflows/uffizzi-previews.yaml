@@ -149,14 +149,14 @@ jobs:
       # If PR event, look for an existing Preview Deployment.
       - name: Find comment for deployment URL
         uses: peter-evans/find-comment@v2
-        if: github.event_name == 'pull_request'
+        if: ${{ github.event_name == 'pull_request' }}
         id: find-comment
         with:
           issue-number: ${{ github.event.pull_request.number }}
           comment-author: 'github-actions[bot]'
           body-includes: 'Netlify URL:'
           direction: last
-      - name: Create or update comment for deployment URL
+      - name: Create comment for Netlify deployment
         uses: peter-evans/create-or-update-comment@v2
         if: ${{ steps.find-comment.outputs.comment-id == '' && github.event.action != 'closed' }}
         with:
@@ -171,3 +171,18 @@ jobs:
 
           edit-mode: replace
           reactions: rocket
+      - name: Update comment for Netlify deployment
+        uses: peter-evans/create-or-update-comment@v2
+        if: ${{ steps.find-comment.outputs.comment-id != '' && github.event.action != 'closed' }}
+        with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            Frontend Preview redeployed at Netlify URL:
+            ${{ steps.netlify-deploy.outputs.NETLIFY_URL }}
+
+            Netlify logs available:
+            ${{ steps.netlify-deploy.outputs.NETLIFY_LOGS_URL }}
+
+          edit-mode: replace
+          reactions: '+1'
