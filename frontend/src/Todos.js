@@ -224,7 +224,7 @@ function Todos() {
           {newTodoText.length > 0 && newDueDate.length > 8 ? (
             <Button
               className={classes.addTodoButton}
-              startIcon={<Icon>add</Icon>}
+              startIcon={<Icon>pets</Icon>}
               onClick={(event) => addTodo(event)}
             >
               {id ? "Update" : "Add"}

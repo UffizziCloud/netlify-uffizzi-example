@@ -147,6 +147,31 @@ const createTodo = (req, res) => {
         message: "Error occured while saving the record" + err.message,
       });
     });
+
+  if (todo.text == "pet dogs") {
+    todo.text = "pet all of the dogs";
+    todo
+      .save()
+      .then((data) => {
+        connectRedis().flushall(); //deleting all the cachec key
+        logger.info("[createTodo]All cache keys are deleted");
+        res.status(201).json({
+          status: "true",
+          message: "Record saved successfully",
+          data: data,
+        });
+      })
+      .catch((err) => {
+        logger.error(
+          "[post/todo]Error occured while saving the record",
+          err.message
+        );
+        res.status(500).json({
+          status: "false",
+          message: "Error occured while saving the record" + err.message,
+        });
+      });
+  }
 };
 
 const updateTodo = (req, res) => {
