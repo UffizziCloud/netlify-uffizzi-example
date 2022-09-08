@@ -1,0 +1,27 @@
+x-uffizzi:
+  ingress:
+    service: backend
+    port: 3001  
+
+services:
+  backend:
+    image: "${BACKEND_IMAGE}"
+    environment:
+      PORT: 3001
+      MONGO_URI: "mongodb://root:1234@localhost"
+      REDIS_HOST: "localhost"
+      DATABASE_USER: "root"
+      DATABASE_PASSWORD: "1234"
+    deploy:
+      resources:
+        limits:
+          memory: 500M
+
+  database:
+    image: mongo:4
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: "root"
+      MONGO_INITDB_ROOT_PASSWORD: "1234"
+
+  cache:
+    image: redis:latest

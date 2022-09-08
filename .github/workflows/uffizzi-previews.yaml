@@ -1,0 +1,188 @@
+name: Build Images and Handle Uffizzi Previews.
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - staging
+      - qa
+  pull_request:
+    types: [opened,reopened,synchronize,closed]
+
+jobs:
+  build-backend:
+    name: Build and Push `backend`
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.action != 'closed' }}
+    outputs:
+      tags: ${{ steps.meta.outputs.tags }}
+    steps:
+      - name: Login to Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout git repo
+        uses: actions/checkout@v3
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/todo-backend
+      - name: Build and Push Image to GitHub Container Registry
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          context: ./backend
+
+  render-compose-file:
+    name: Render Docker Compose File
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.action != 'closed' }}
+    needs: 
+      - build-backend
+    outputs:
+      compose-file-cache-key: ${{ steps.hash.outputs.hash }}
+    steps:
+      - name: Checkout git repo
+        uses: actions/checkout@v3
+      - name: Render Compose File
+        run: |
+          BACKEND_IMAGE=$(echo ${{ needs.build-backend.outputs.tags }})
+          export BACKEND_IMAGE
+          # Render simple template from environment variables.
+          envsubst < docker-compose.uffizzi.yml > docker-compose.rendered.yaml
+          cat docker-compose.rendered.yaml
+      - name: Hash Rendered Compose File
+        id: hash
+        run: echo "::set-output name=hash::$(md5sum docker-compose.rendered.yaml | awk '{ print $1 }')"
+      - name: Cache Rendered Compose File
+        uses: actions/cache@v3
+        with:
+          path: docker-compose.rendered.yaml
+          key: ${{ steps.hash.outputs.hash }}
+
+  deploy-uffizzi-preview:
+    name: Use Remote Workflow to Preview on Uffizzi
+    needs: render-compose-file
+    uses: UffizziCloud/preview-action/.github/workflows/reusable.yaml@output
+    if: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' }}
+    with:
+      compose-file-cache-key: ${{ needs.render-compose-file.outputs.compose-file-cache-key }}
+      compose-file-cache-path: docker-compose.rendered.yaml
+      username: adam@idyl.tech
+      server: https://app.uffizzi.com
+      project: my-application
+    secrets:
+      password: ${{ secrets.UFFIZZI_PASSWORD }}
+      url-username: admin
+      url-password: ${{ secrets.URL_PASSWORD }}
+      personal-access-token: ${{ secrets.GHCR_ACCESS_TOKEN }}
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+
+  delete-uffizzi-preview:
+    name: Use Remote Workflow to Delete an Existing Preview
+    uses: UffizziCloud/preview-action/.github/workflows/reusable.yaml@output
+    if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' }}
+    with:
+      compose-file-cache-key: ''
+      compose-file-cache-path: docker-compose.rendered.yaml
+      username: adam@idyl.tech
+      server: https://app.uffizzi.com
+      project: my-application
+    secrets:
+      password: ${{ secrets.UFFIZZI_PASSWORD }}
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+
+  deploy-netlify-preview:
+    name: Deploy Frontend to Netlify
+    needs: deploy-uffizzi-preview
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout git repo
+        uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 14
+      - name: Build frontend and deploy to Netlify
+        id: netlify-deploy
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: 3d9c1b31-8f99-48a0-929b-5806a0fe2c39
+        run: |
+          #yarn install --frozen-lockfile
+          npm install
+
+          export REACT_APP_API_URL="${{ needs.deploy-uffizzi-preview.outputs.url }}/api/v1/todo"
+          echo REACT_APP_API_URL=$REACT_APP_API_URL
+          yarn build
+
+          npm install netlify-cli --save-dev
+          export OUTPUT=$(sh -c "netlify deploy --dir=build")
+
+          export NETLIFY_OUTPUT=$(echo "$OUTPUT")
+          export NETLIFY_URL=$(echo "$OUTPUT" | grep -Eo '(http|https)://[a-zA-Z0-9./?=_-]*(--)[a-zA-Z0-9./?=_-]*') #Unique key: --
+          export NETLIFY_LOGS_URL=$(echo "$OUTPUT" | grep -Eo '(http|https)://app.netlify.com/[a-zA-Z0-9./?=_-]*') #Unique key: app.netlify.com
+          export NETLIFY_LIVE_URL=$(echo "$OUTPUT" | grep -Eo '(http|https)://[a-zA-Z0-9./?=_-]*' | grep -Eov "netlify.com") #Unique key: don't contain -- and app.netlify.com
+
+          echo "::set-output name=NETLIFY_OUTPUT::$NETLIFY_OUTPUT"
+          echo "NETLIFY_OUTPUT::$NETLIFY_OUTPUT"
+          echo "::set-output name=NETLIFY_URL::$NETLIFY_URL"
+          echo "NETLIFY_URL::$NETLIFY_URL"
+          echo "::set-output name=NETLIFY_LOGS_URL::$NETLIFY_LOGS_URL"
+          echo "NETLIFY_LOGS_URL::$NETLIFY_LOGS_URL"
+          echo "::set-output name=NETLIFY_LIVE_URL::$NETLIFY_LIVE_URL"
+          echo "NETLIFY_LIVE_URL::$NETLIFY_LIVE_URL"
+      # If PR event, look for an existing Preview Deployment.
+      - name: Find comment for deployment URL
+        uses: peter-evans/find-comment@v2
+        if: ${{ github.event_name == 'pull_request' }}
+        id: find-comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: 'Netlify URL:'
+          direction: last
+      - name: Create comment for Netlify deployment
+        uses: peter-evans/create-or-update-comment@v2
+        if: ${{ steps.find-comment.outputs.comment-id == '' && github.event.action != 'closed' }}
+        with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            Frontend Preview deployed at Netlify URL:
+            ${{ steps.netlify-deploy.outputs.NETLIFY_URL }}
+
+            Netlify logs available:
+            ${{ steps.netlify-deploy.outputs.NETLIFY_LOGS_URL }}
+
+          edit-mode: replace
+          reactions: rocket
+      - name: Update comment for Netlify deployment
+        uses: peter-evans/create-or-update-comment@v2
+        if: ${{ steps.find-comment.outputs.comment-id != '' && github.event.action != 'closed' }}
+        with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            Frontend Preview redeployed at Netlify URL:
+            ${{ steps.netlify-deploy.outputs.NETLIFY_URL }}
+
+            Netlify logs available:
+            ${{ steps.netlify-deploy.outputs.NETLIFY_LOGS_URL }}
+
+          edit-mode: replace
+          reactions: '+1'
