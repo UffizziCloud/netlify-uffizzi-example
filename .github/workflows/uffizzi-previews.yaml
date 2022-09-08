@@ -154,7 +154,7 @@ jobs:
         with:
           issue-number: ${{ github.event.pull_request.number }}
           comment-author: 'github-actions[bot]'
-          body-includes: 'Netlify Preview URL:'
+          body-includes: 'Netlify URL:'
           direction: last
       - name: Create or update comment for deployment URL
         uses: peter-evans/create-or-update-comment@v2
